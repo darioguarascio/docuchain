@@ -3,8 +3,6 @@ import node from "@astrojs/node";
 import react from "@astrojs/react";
 import tailwindcss from "@tailwindcss/vite";
 
-import icon from "astro-icon";
-
 // https://astro.build/config
 const mountPath = process.env.MOUNT_PATH || "/";
 const base = mountPath.endsWith("/") ? mountPath : `${mountPath}/`;
@@ -17,7 +15,7 @@ export default defineConfig({
     },
   },
   compressHTML: false, // disable HTML minification
-  integrations: [react(), icon()],
+  integrations: [react()],
   output: "server",
   security: {
     // checkOrigin: false

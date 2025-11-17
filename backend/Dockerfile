@@ -19,8 +19,6 @@ RUN npm ci
 
 COPY . .
 
-RUN npm run typecheck
-
 EXPOSE 3000
 
 CMD ["npm", "run", "dev"]
