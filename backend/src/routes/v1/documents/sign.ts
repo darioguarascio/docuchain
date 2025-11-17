@@ -1,6 +1,6 @@
-import multer from 'multer';
-import limiter from '@utils/limiter.ts';
-import { signDocument } from '@modules/documents/controllers/documents.controller.ts';
+import multer from "multer";
+import limiter from "@utils/limiter.ts";
+import { signDocument } from "@modules/documents/controllers/documents.controller.ts";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -9,4 +9,4 @@ const upload = multer({
   },
 });
 
-export const post = [limiter, upload.single('pdf'), signDocument];
+export const post = [limiter, upload.single("pdf"), signDocument];

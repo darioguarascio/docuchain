@@ -1,8 +1,8 @@
-import opentype from 'opentype.js';
-import { v4 as uuidv4 } from 'uuid';
-import fs from 'fs';
-import path from 'path';
-import env from '@utils/env.ts';
+import opentype from "opentype.js";
+import { v4 as uuidv4 } from "uuid";
+import fs from "fs";
+import path from "path";
+import env from "@utils/env.ts";
 
 interface SignatureOptions {
   signatureText: string;
@@ -16,7 +16,7 @@ interface SignatureOptions {
  */
 export function generateSignatureSVG({
   signatureText,
-  label = 'Firmato digitalmente da:',
+  label = "Firmato digitalmente da:",
   uuid = null,
   fontPath = null,
 }: SignatureOptions): string {
@@ -38,28 +38,34 @@ export function generateSignatureSVG({
 
   function escapeXml(text: string): string {
     return String(text)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&apos;');
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;");
   }
 
-  function textToPath(font: opentype.Font, text: string, fontSize: number, x: number, y: number): string {
+  function textToPath(
+    font: opentype.Font,
+    text: string,
+    fontSize: number,
+    x: number,
+    y: number,
+  ): string {
     const path = font.getPath(text, x, y, fontSize);
-    const commands = path.commands;
-    let d = '';
+    const { commands } = path;
+    let d = "";
     for (const cmd of commands) {
-      if (cmd.type === 'M') {
+      if (cmd.type === "M") {
         d += `M ${cmd.x} ${cmd.y} `;
-      } else if (cmd.type === 'L') {
+      } else if (cmd.type === "L") {
         d += `L ${cmd.x} ${cmd.y} `;
-      } else if (cmd.type === 'Q') {
+      } else if (cmd.type === "Q") {
         d += `Q ${cmd.x1} ${cmd.y1} ${cmd.x} ${cmd.y} `;
-      } else if (cmd.type === 'C') {
+      } else if (cmd.type === "C") {
         d += `C ${cmd.x1} ${cmd.y1} ${cmd.x2} ${cmd.y2} ${cmd.x} ${cmd.y} `;
-      } else if (cmd.type === 'Z') {
-        d += 'Z ';
+      } else if (cmd.type === "Z") {
+        d += "Z ";
       }
     }
     return `<path d="${d.trim()}" fill="#000000" stroke="none"/>`;
@@ -75,12 +81,18 @@ export function generateSignatureSVG({
   const estimatedWidth = 400;
   const estimatedHeight = padding * 2 + 20 + 12 + 30 + 12 + 16;
 
-  let signaturePath = '';
+  let signaturePath = "";
   if (useCustomFont && font) {
     try {
-      signaturePath = textToPath(font, signatureText, 24, textStartX, signatureY);
+      signaturePath = textToPath(
+        font,
+        signatureText,
+        24,
+        textStartX,
+        signatureY,
+      );
     } catch (error) {
-      console.warn('Error converting signature to path:', error);
+      console.warn("Error converting signature to path:", error);
       signaturePath = `<text x="${textStartX}" y="${signatureY}" font-size="24" fill="#000000">${escapeXml(signatureText)}</text>`;
     }
   } else {
@@ -116,7 +128,6 @@ export function generateSignatureSVG({
  */
 export function generateSignatureDataUrl(options: SignatureOptions): string {
   const svg = generateSignatureSVG(options);
-  const base64Svg = Buffer.from(svg).toString('base64');
+  const base64Svg = Buffer.from(svg).toString("base64");
   return `data:image/svg+xml;base64,${base64Svg}`;
 }
-

@@ -16,4 +16,3 @@ export const decrementPendingRequests = (): void => {
 };
 
 export const getPendingRequests = (): number => pendingRequests;
-

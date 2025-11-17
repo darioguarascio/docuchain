@@ -1,8 +1,10 @@
-import cors from 'cors';
-import env from '@utils/env.ts';
+import cors from "cors";
+import env from "@utils/env.ts";
 
 const origin =
-  Array.isArray(env.CORS_ORIGIN) && env.CORS_ORIGIN.includes('*') ? true : env.CORS_ORIGIN;
+  Array.isArray(env.CORS_ORIGIN) && env.CORS_ORIGIN.includes("*")
+    ? true
+    : env.CORS_ORIGIN;
 
 const corsOptions = {
   origin,
@@ -13,4 +15,3 @@ const corsOptions = {
 };
 
 export default cors(corsOptions);
-

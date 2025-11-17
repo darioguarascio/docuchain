@@ -1,38 +1,34 @@
-import { body } from 'express-validator';
+import { body } from "express-validator";
 
 export const createDocumentValidator = [
-  body('template')
+  body("template")
     .notEmpty()
-    .withMessage('Template is required')
+    .withMessage("Template is required")
     .isString()
-    .withMessage('Template must be a string'),
-  body('placeholders')
+    .withMessage("Template must be a string"),
+  body("placeholders")
     .optional()
     .isObject()
-    .withMessage('Placeholders must be an object'),
-  body('metadata')
+    .withMessage("Placeholders must be an object"),
+  body("metadata")
     .optional()
     .isObject()
-    .withMessage('Metadata must be an object'),
-  body('async')
-    .optional()
-    .isBoolean()
-    .withMessage('async must be a boolean'),
+    .withMessage("Metadata must be an object"),
+  body("async").optional().isBoolean().withMessage("async must be a boolean"),
 ];
 
 export const previewDocumentValidator = [
-  body('template')
+  body("template")
     .notEmpty()
-    .withMessage('Template is required')
+    .withMessage("Template is required")
     .isString()
-    .withMessage('Template must be a string'),
-  body('placeholders')
+    .withMessage("Template must be a string"),
+  body("placeholders")
     .optional()
     .isObject()
-    .withMessage('Placeholders must be an object'),
-  body('metadata')
+    .withMessage("Placeholders must be an object"),
+  body("metadata")
     .optional()
     .isObject()
-    .withMessage('Metadata must be an object'),
+    .withMessage("Metadata must be an object"),
 ];
-

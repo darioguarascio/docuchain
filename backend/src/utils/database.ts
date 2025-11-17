@@ -1,9 +1,9 @@
-import { Sequelize } from 'sequelize';
-import env from '@utils/env.ts';
+import { Sequelize } from "sequelize";
+import env from "@utils/env.ts";
 
 const sequelize = new Sequelize(env.DATABASE_URL, {
-  dialect: 'postgres',
-  logging: env.APP_ENV === 'dev' ? console.log : false,
+  dialect: "postgres",
+  logging: env.APP_ENV === "dev" ? console.log : false,
   pool: {
     max: 10,
     min: 0,
@@ -20,10 +20,10 @@ const sequelize = new Sequelize(env.DATABASE_URL, {
 export const testConnection = async (): Promise<boolean> => {
   try {
     await sequelize.authenticate();
-    console.log('Database connection established successfully.');
+    console.log("Database connection established successfully.");
     return true;
   } catch (error) {
-    console.error('Unable to connect to the database:', error);
+    console.error("Unable to connect to the database:", error);
     return false;
   }
 };
@@ -31,11 +31,10 @@ export const testConnection = async (): Promise<boolean> => {
 export const closeConnection = async (): Promise<void> => {
   try {
     await sequelize.close();
-    console.log('Database connection closed.');
+    console.log("Database connection closed.");
   } catch (error) {
-    console.error('Error closing database connection:', error);
+    console.error("Error closing database connection:", error);
   }
 };
 
 export default sequelize;
-

@@ -1,13 +1,13 @@
-import http from 'http';
-import env from '@utils/env.ts';
-import express from '@utils/express.ts';
-import { setHealthy, getPendingRequests } from '@utils/health-state.ts';
-import { testConnection } from '@utils/database.ts';
+import http from "http";
+import env from "@utils/env.ts";
+import express from "@utils/express.ts";
+import { setHealthy, getPendingRequests } from "@utils/health-state.ts";
+import { testConnection } from "@utils/database.ts";
 
 const startServer = async () => {
   const dbConnected = await testConnection();
   if (!dbConnected) {
-    console.error('Failed to connect to database. Server will not start.');
+    console.error("Failed to connect to database. Server will not start.");
     process.exit(1);
   }
 
@@ -19,22 +19,27 @@ const startServer = async () => {
     console.log(`Received ${signal}, starting graceful shutdown...`);
 
     setHealthy(false);
-    console.log('Healthcheck set to unhealthy, waiting for reverse proxy to detect...');
+    console.log(
+      "Healthcheck set to unhealthy, waiting for reverse proxy to detect...",
+    );
 
     const healthcheckInterval = 10000;
     const healthcheckTimeout = 3000;
     const healthcheckRetries = 3;
-    const drainTime = healthcheckInterval + healthcheckTimeout * healthcheckRetries + 2000;
+    const drainTime =
+      healthcheckInterval + healthcheckTimeout * healthcheckRetries + 2000;
 
-    await new Promise<void>(resolve => {
+    await new Promise<void>((resolve) => {
       setTimeout(() => {
         resolve();
       }, drainTime);
     });
-    console.log('Reverse proxy should have detected unhealthy status, closing server...');
+    console.log(
+      "Reverse proxy should have detected unhealthy status, closing server...",
+    );
 
     server.close(() => {
-      console.log('HTTP server closed, no longer accepting new connections');
+      console.log("HTTP server closed, no longer accepting new connections");
     });
 
     const timeoutMs = env.GRACEFUL_TIMEOUT_MS;
@@ -45,10 +50,10 @@ const startServer = async () => {
       while (Date.now() - started < timeoutMs) {
         const pending = getPendingRequests();
         if (pending === 0) {
-          console.log('All requests completed, exiting');
+          console.log("All requests completed, exiting");
           process.exit(0);
         }
-        await new Promise<void>(resolve => {
+        await new Promise<void>((resolve) => {
           setTimeout(() => {
             resolve();
           }, checkIntervalMs);
@@ -58,16 +63,15 @@ const startServer = async () => {
 
     await checkPendingRequests();
 
-    console.log('Graceful shutdown timeout reached, forcing exit');
+    console.log("Graceful shutdown timeout reached, forcing exit");
     process.exit(0);
   };
 
-  process.once('SIGTERM', () => gracefulShutdown('SIGTERM'));
-  process.once('SIGINT', () => gracefulShutdown('SIGINT'));
+  process.once("SIGTERM", () => gracefulShutdown("SIGTERM"));
+  process.once("SIGINT", () => gracefulShutdown("SIGINT"));
 };
 
-startServer().catch(error => {
-  console.error('Failed to start server:', error);
+startServer().catch((error) => {
+  console.error("Failed to start server:", error);
   process.exit(1);
 });
-

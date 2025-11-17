@@ -1,9 +1,8 @@
-import MarkdownIt from 'markdown-it';
-import puppeteer from 'puppeteer';
-import fs from 'fs';
-import path from 'path';
-import { generateSignatureSVG } from '@modules/signatures/services/signature.service.ts';
-import env from '@utils/env.ts';
+import MarkdownIt from "markdown-it";
+import puppeteer, { Browser } from "puppeteer";
+import fs from "fs";
+import path from "path";
+import { generateSignatureSVG } from "@modules/signatures/services/signature.service.ts";
 
 const md = new MarkdownIt({
   html: true,
@@ -12,54 +11,61 @@ const md = new MarkdownIt({
 });
 
 // Custom renderer for images to support dimension attributes
-md.renderer.rules.image = (tokens, idx, options, env, self) => {
+md.renderer.rules.image = (tokens, idx) => {
   const token = tokens[idx];
-  const src = token.attrGet('src') || '';
-  const alt = token.content || '';
-  const title = token.attrGet('title') || '';
-  
+  if (!token) {
+    return "";
+  }
+  const src = token.attrGet("src") || "";
+  const alt = token.content || "";
+  const title = token.attrGet("title") || "";
+
   // Check for dimension attributes in alt text or title
   // Format: ![alt](url "title{width=100,height=200}")
-  let width = '';
-  let height = '';
-  let style = '';
-  
+  let width = "";
+  let height = "";
+  let style = "";
+
   // Parse dimensions from title if present
-  const titleMatch = title.match(/\{width=(\d+),?height=(\d+)?\}/i) || title.match(/\{height=(\d+),?width=(\d+)?\}/i);
+  const titleMatch =
+    title.match(/\{width=(\d+),?height=(\d+)?\}/i) ||
+    title.match(/\{height=(\d+),?width=(\d+)?\}/i);
   if (titleMatch) {
-    width = titleMatch[1] || '';
-    height = titleMatch[2] || titleMatch[1] || '';
+    width = titleMatch[1] || "";
+    height = titleMatch[2] || titleMatch[1] || "";
     // Remove dimension syntax from title
-    const cleanTitle = title.replace(/\{.*?\}/, '').trim();
+    const cleanTitle = title.replace(/\{.*?\}/, "").trim();
     if (width || height) {
       style = `style="width: ${width}px; height: ${height}px; object-fit: contain;"`;
     }
-    return `<img src="${src}" alt="${alt}" ${title ? `title="${cleanTitle}"` : ''} ${style} />`;
+    return `<img src="${src}" alt="${alt}" ${title ? `title="${cleanTitle}"` : ""} ${style} />`;
   }
-  
+
   // Parse dimensions from alt text if present
-  const altMatch = alt.match(/\{width=(\d+),?height=(\d+)?\}/i) || alt.match(/\{height=(\d+),?width=(\d+)?\}/i);
+  const altMatch =
+    alt.match(/\{width=(\d+),?height=(\d+)?\}/i) ||
+    alt.match(/\{height=(\d+),?width=(\d+)?\}/i);
   if (altMatch) {
-    width = altMatch[1] || '';
-    height = altMatch[2] || altMatch[1] || '';
-    const cleanAlt = alt.replace(/\{.*?\}/, '').trim();
+    width = altMatch[1] || "";
+    height = altMatch[2] || altMatch[1] || "";
+    const cleanAlt = alt.replace(/\{.*?\}/, "").trim();
     if (width || height) {
       style = `style="width: ${width}px; height: ${height}px; object-fit: contain;"`;
     }
-    return `<img src="${src}" alt="${cleanAlt}" ${title ? `title="${title}"` : ''} ${style} />`;
+    return `<img src="${src}" alt="${cleanAlt}" ${title ? `title="${title}"` : ""} ${style} />`;
   }
-  
+
   // Default rendering
-  return `<img src="${src}" alt="${alt}" ${title ? `title="${title}"` : ''} />`;
+  return `<img src="${src}" alt="${alt}" ${title ? `title="${title}"` : ""} />`;
 };
 
-let browserInstance: puppeteer.Browser | null = null;
+let browserInstance: Browser | null = null;
 
-async function getBrowser(): Promise<puppeteer.Browser> {
+async function getBrowser(): Promise<Browser> {
   if (!browserInstance) {
     browserInstance = await puppeteer.launch({
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
     });
   }
   return browserInstance;
@@ -76,25 +82,18 @@ interface PlaceholderData {
   [key: string]: string;
 }
 
-interface SignaturePlaceholder {
-  signatureText: string;
-  label?: string;
-  uuid?: string;
-  fontFamily?: string;
-}
-
 /**
  * Processes markdown content and replaces placeholders
  */
 export function processMarkdownTemplate(
   markdownContent: string,
-  placeholders: PlaceholderData
+  placeholders: PlaceholderData,
 ): string {
   let processed = markdownContent;
 
   // Replace simple placeholders like {{name}}, {{date}}, etc.
-  Object.keys(placeholders).forEach(key => {
-    const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+  Object.keys(placeholders).forEach((key) => {
+    const regex = new RegExp(`\\{\\{${key}\\}\\}`, "g");
     processed = processed.replace(regex, placeholders[key]);
   });
 
@@ -105,22 +104,24 @@ export function processMarkdownTemplate(
  * Converts markdown to HTML with signature placeholders processed
  */
 export function markdownToHtml(markdownContent: string): string {
-  const signaturePattern = /\{\{signature:([^:}]+)(?::([^:}]*))?(?::([^:}]*))?(?::([^}]*))?\}\}/g;
+  const signaturePattern =
+    /\{\{signature:([^:}]+)(?::([^:}]*))?(?::([^:}]*))?(?::([^}]*))?\}\}/g;
   const signatures: Array<{ placeholder: string; svg: string }> = [];
   const placeholders: Array<{ original: string; placeholder: string }> = [];
 
   const matches = [...markdownContent.matchAll(signaturePattern)];
   matches.forEach((match, index) => {
-    const signatureText = match[1];
-    const label = match[2] && match[2].length > 0 ? match[2] : 'Firmato digitalmente da:';
-    const uuid = match[3] && match[3].length > 0 ? match[3] : null;
-    const fontFamily = match[4] && match[4].length > 0 ? match[4] : null;
+    const signatureText = (match[1] ?? "").trim();
+    const label =
+      match[2] && match[2].length > 0 ? match[2] : "Firmato digitalmente da:";
+    const uuid = match[3] && match[3].length > 0 ? match[3] : undefined;
+    const fontFamily = match[4] && match[4].length > 0 ? match[4] : undefined;
 
     const svg = generateSignatureSVG({
       signatureText,
       label,
-      uuid: uuid || undefined,
-      fontPath: fontFamily ? undefined : undefined,
+      uuid,
+      fontPath: fontFamily,
     });
 
     const placeholder = `<!-- SIGNATURE_PLACEHOLDER_${index}_${Date.now()} -->`;
@@ -146,7 +147,10 @@ export function markdownToHtml(markdownContent: string): string {
 /**
  * Converts HTML to PDF
  */
-export async function htmlToPdf(html: string, outputPath?: string): Promise<Buffer> {
+export async function htmlToPdf(
+  html: string,
+  outputPath?: string,
+): Promise<Buffer> {
   const browser = await getBrowser();
   const page = await browser.newPage();
 
@@ -215,16 +219,16 @@ export async function htmlToPdf(html: string, outputPath?: string): Promise<Buff
 </html>
   `;
 
-  await page.setContent(styledHtml, { waitUntil: 'networkidle0' });
+  await page.setContent(styledHtml, { waitUntil: "networkidle0" });
 
   const pdfBuffer = await page.pdf({
-    format: 'A4',
+    format: "A4",
     printBackground: true,
     margin: {
-      top: '20mm',
-      right: '15mm',
-      bottom: '20mm',
-      left: '15mm',
+      top: "20mm",
+      right: "15mm",
+      bottom: "20mm",
+      left: "15mm",
     },
   });
 
@@ -247,10 +251,13 @@ export async function htmlToPdf(html: string, outputPath?: string): Promise<Buff
 export async function generateDocument(
   markdownTemplate: string,
   placeholders: PlaceholderData,
-  outputPath?: string
+  outputPath?: string,
 ): Promise<Buffer> {
   // Process placeholders
-  const processedMarkdown = processMarkdownTemplate(markdownTemplate, placeholders);
+  const processedMarkdown = processMarkdownTemplate(
+    markdownTemplate,
+    placeholders,
+  );
 
   // Convert to HTML with signatures
   const html = markdownToHtml(processedMarkdown);
@@ -260,4 +267,3 @@ export async function generateDocument(
 
   return pdfBuffer;
 }
-
