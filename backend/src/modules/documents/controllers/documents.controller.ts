@@ -74,11 +74,19 @@ const renderSignatureSvg = (
     ? signatureMatch[1].trim()
     : resolvedSignatureText;
   
-  // Generate a proper UUID for the signature (don't use slot.id)
+  // Generate a deterministic UUID based on slot ID and signature text
+  // This ensures the same signature always produces the same UUID
+  const deterministicUuid = crypto
+    .createHash("sha256")
+    .update(`${slot.id}:${signatureOnly}:${displayLabel}`)
+    .digest("hex")
+    .substring(0, 32);
+  const formattedUuid = `${deterministicUuid.substring(0, 8)}-${deterministicUuid.substring(8, 12)}-${deterministicUuid.substring(12, 16)}-${deterministicUuid.substring(16, 20)}-${deterministicUuid.substring(20, 32)}`;
+  
   const svg = generateSignatureSVG({
     signatureText: signatureOnly,
     label: displayLabel,
-    // uuid not provided - will auto-generate a proper UUID
+    uuid: formattedUuid,
   });
   // Encode SVG as data URL to avoid HTML parsing issues
   const base64Svg = Buffer.from(svg).toString("base64");
@@ -615,8 +623,12 @@ export const verifyDocumentByFile = async (req: Request, res: Response) => {
 
     const pdfBuffer = Buffer.from(req.body);
 
-    // Calculate content hash
-    const contentHash = calculateHash(pdfBuffer);
+    // Extract preview envelope if present (for signed PDFs, there shouldn't be one,
+    // but we extract it to get the unsigned buffer for consistent hashing)
+    const { unsignedBuffer } = extractPreviewEnvelope(pdfBuffer);
+
+    // Calculate content hash on the unsigned buffer (without any embedded envelope)
+    const contentHash = calculateHash(unsignedBuffer);
 
     // Verify by hash
     const { verifyDocumentByHash } = await import(
