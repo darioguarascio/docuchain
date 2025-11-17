@@ -34,7 +34,7 @@ const envs: Env = {
   VERSION: getv('VERSION', '0.0.0'),
   LIMITER_LIMIT: parseInt(getv('LIMITER_LIMIT', 100)),
   LIMITER_WINDOW: parseInt(getv('LIMITER_WINDOW', 15 * 60)),
-  DATABASE_URL: getv('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/docuchain'),
+  DATABASE_URL: getv('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/postgres'),
   REDIS_URL: getv('REDIS_URL', 'redis://localhost:6379'),
   JWT_SECRET: getv('JWT_SECRET', 'docuchain-jwt-secret-change-in-production'),
   JWT_COOKIE_NAME: getv('JWT_COOKIE_NAME', 'jwt'),

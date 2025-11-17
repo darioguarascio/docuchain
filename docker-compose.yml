@@ -40,7 +40,7 @@ services:
     environment:
       APP_ENV: ${APP_ENV:-production}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-      DATABASE_URL: ${DATABASE_URL:-postgresql://docuchain:docuchain@postgresql:5432/postgres}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgresql:5432/postgres}
       PDF_OUTPUT_DIR: ${PDF_OUTPUT_DIR:-/tmp/pdfs}
       HMAC_SECRET_KEY: ${HMAC_SECRET_KEY:-}
       JWT_SECRET: ${JWT_SECRET:-docuchain-jwt-secret}
@@ -124,7 +124,7 @@ services:
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       REDIS_QUEUE: ${REDIS_QUEUE:-docuchain:documents:queue}
       REDIS_DLQ: ${REDIS_DLQ:-docuchain:documents:dlq}
-      DATABASE_URL: ${DATABASE_URL:-postgresql://docuchain:docuchain@postgresql:5432/postgres}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgresql:5432/postgres}
       BACKEND_API_URL: ${BACKEND_API_URL:-http://backend:3000}
       MAX_RETRIES: ${JOB_MAX_RETRIES:-3}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
