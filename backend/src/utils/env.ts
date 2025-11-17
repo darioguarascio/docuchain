@@ -38,7 +38,7 @@ const envs: Env = {
   LIMITER_WINDOW: parseInt(getv("LIMITER_WINDOW", 15 * 60)),
   DATABASE_URL: getv(
     "DATABASE_URL",
-    "postgresql://postgres:postgres@localhost:5432/postgres",
+    "postgresql://postgres:postgres@localhost:5432/docuchain",
   ),
   REDIS_URL: getv("REDIS_URL", "redis://localhost:6379"),
   JWT_SECRET: getv("JWT_SECRET", "docuchain-jwt-secret-change-in-production"),

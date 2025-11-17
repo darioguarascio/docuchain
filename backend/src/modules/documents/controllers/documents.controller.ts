@@ -14,6 +14,10 @@ import fs from "fs";
 import {
   appendHiddenMetadataBlock,
   buildRequestMetadata,
+  extractSignatureSlots,
+  replaceSignatureSlots,
+  SignatureSlot,
+  RequestMetadata,
 } from "@modules/documents/utils/template-metadata.ts";
 import {
   attachPreviewEnvelope,
@@ -22,6 +26,99 @@ import {
   deterministicStringify,
 } from "@modules/documents/utils/preview-envelope.ts";
 import { calculateHash, calculateObjectHash } from "@utils/hash.ts";
+import { generateSignatureSVG } from "@modules/signatures/services/signature.service.ts";
+
+const resolveSlotLabel = (
+  slot: SignatureSlot,
+  placeholders?: Record<string, string>,
+): string => {
+  if (!placeholders || Object.keys(placeholders).length === 0) {
+    return slot.label;
+  }
+  return processMarkdownTemplate(slot.label, placeholders);
+};
+
+const renderSignaturePlaceholder = (
+  slot: SignatureSlot,
+  placeholders?: Record<string, string>,
+): string => {
+  const displayLabel = resolveSlotLabel(slot, placeholders);
+  return `<div style="border:2px dashed #94a3b8; border-radius:8px; padding:16px; margin:16px 0; background:#f8fafc;">
+  <strong>Signature Slot:</strong> ${displayLabel}
+  <div style="color:#64748b; font-size:14px;">
+    This area will display the signature for <em>${slot.id}</em> when the document is signed.
+  </div>
+</div>`;
+};
+
+const renderSignatureSvg = (
+  slot: SignatureSlot,
+  signatureText: string,
+  placeholders?: Record<string, string>,
+): string => {
+  // Resolve placeholders in signature text (e.g., {{party_a_name}})
+  const resolvedSignatureText = placeholders
+    ? processMarkdownTemplate(signatureText, placeholders)
+    : signatureText;
+  
+  // Parse label: extract part outside parentheses for header
+  // e.g., "Firma paziente (Jane Doe, Esq.)" -> "Firma paziente"
+  const fullLabel = resolveSlotLabel(slot, placeholders);
+  const labelMatch = fullLabel.match(/^([^(]+)(?:\s*\([^)]+\))?\s*$/);
+  const displayLabel = labelMatch ? labelMatch[1].trim() : fullLabel;
+  
+  // Parse signature text: extract only the part inside parentheses
+  // e.g., "Firma paziente (Jane Doe, Esq.)" -> "Jane Doe, Esq."
+  const signatureMatch = resolvedSignatureText.match(/\(([^)]+)\)/);
+  const signatureOnly = signatureMatch
+    ? signatureMatch[1].trim()
+    : resolvedSignatureText;
+  
+  // Generate a proper UUID for the signature (don't use slot.id)
+  const svg = generateSignatureSVG({
+    signatureText: signatureOnly,
+    label: displayLabel,
+    // uuid not provided - will auto-generate a proper UUID
+  });
+  // Encode SVG as data URL to avoid HTML parsing issues
+  const base64Svg = Buffer.from(svg).toString("base64");
+  const dataUrl = `data:image/svg+xml;base64,${base64Svg}`;
+  // Match placeholder margin for alignment (16px 0) and ensure left alignment
+  return `<div style="margin: 16px 0; display: block; text-align: left;"><img src="${dataUrl}" alt="Signature" style="display: inline-block; margin: 0 !important; vertical-align: top;" /></div>`;
+};
+
+interface SignaturePayloadEntry {
+  slot: string;
+  signatureText: string;
+}
+
+const normalizeSignaturePayload = (payload: any): SignaturePayloadEntry[] => {
+  if (!Array.isArray(payload)) {
+    return [];
+  }
+  return payload
+    .map((entry) => {
+      if (!entry) {
+        return null;
+      }
+      if (typeof entry === "string") {
+        return { slot: entry, signatureText: entry };
+      }
+      if (typeof entry === "object" && typeof entry.slot === "string") {
+        const slotId = entry.slot.trim();
+        if (!slotId) {
+          return null;
+        }
+        const signatureText =
+          typeof entry.signatureText === "string" && entry.signatureText.length > 0
+            ? entry.signatureText
+            : slotId;
+        return { slot: slotId, signatureText };
+      }
+      return null;
+    })
+    .filter((entry): entry is SignaturePayloadEntry => !!entry?.slot);
+};
 
 export const createDocument = async (req: Request, res: Response) => {
   const result = validationResult(req);
@@ -40,9 +137,24 @@ export const createDocument = async (req: Request, res: Response) => {
 
   try {
     const documentId = nanoid();
-    const requestMetadata = buildRequestMetadata(req);
-    const templateWithMetadata = appendHiddenMetadataBlock(
+    const requestMetadata = buildRequestMetadata(req, {
+      templateContent: template,
+      signatureSlots: extractSignatureSlots(template),
+      customMetadata:
+        typeof req.body?.metadata === "object" ? req.body.metadata : undefined,
+    });
+    const mergedPlaceholders = {
+      ...safePlaceholders,
+      ...(requestMetadata.custom_metadata ?? {}),
+    };
+    const signatureSlots = requestMetadata.signature_slots ?? [];
+    const previewTemplate = replaceSignatureSlots(
       template,
+      signatureSlots,
+      (slot) => renderSignaturePlaceholder(slot, mergedPlaceholders),
+    );
+    const templateWithMetadata = appendHiddenMetadataBlock(
+      previewTemplate,
       requestMetadata,
     );
 
@@ -96,7 +208,7 @@ export const createDocument = async (req: Request, res: Response) => {
     // Generate PDF
     const pdfBuffer = await generateDocument(
       templateWithMetadata,
-      safePlaceholders,
+      mergedPlaceholders,
       outputPath,
     );
 
@@ -150,19 +262,34 @@ export const previewDocument = async (req: Request, res: Response) => {
   }
 
   const { template, placeholders, metadata = {} } = req.body;
+  const safePlaceholders =
+    placeholders && typeof placeholders === "object"
+      ? (placeholders as Record<string, string>)
+      : {};
 
   try {
-    const requestMetadata = {
-      ...buildRequestMetadata(req),
-      custom_metadata: metadata,
+    const signatureSlots = extractSignatureSlots(template);
+    const mergedPlaceholders = {
+      ...safePlaceholders,
+      ...(metadata ?? {}),
     };
-    const templateWithMetadata = appendHiddenMetadataBlock(
+    const previewTemplate = replaceSignatureSlots(
       template,
+      signatureSlots,
+      (slot) => renderSignaturePlaceholder(slot, mergedPlaceholders),
+    );
+    const requestMetadata = buildRequestMetadata(req, {
+      customMetadata: metadata,
+      templateContent: template,
+      signatureSlots,
+    });
+    const templateWithMetadata = appendHiddenMetadataBlock(
+      previewTemplate,
       requestMetadata,
     );
     const pdfBuffer = await generateDocument(
       templateWithMetadata,
-      placeholders || {},
+      mergedPlaceholders,
     );
 
     const { buffer: bufferWithEnvelope, encodedEnvelope } =
@@ -272,7 +399,7 @@ export const signDocument = async (req: Request, res: Response) => {
 
   let extraMetadata: Record<string, any> = {};
   let placeholders: Record<string, any> = {};
-  let signaturePayload: any = [];
+  let signaturePayloadRaw: any = [];
 
   try {
     extraMetadata =
@@ -282,7 +409,7 @@ export const signDocument = async (req: Request, res: Response) => {
         req.body.placeholders,
         "placeholders",
       ) ?? {};
-    signaturePayload =
+    signaturePayloadRaw =
       parseJsonField<any>(req.body.signature_payload, "signature_payload") ??
       [];
   } catch (error: any) {
@@ -291,40 +418,90 @@ export const signDocument = async (req: Request, res: Response) => {
       .json({ error: error.message ?? "Invalid JSON input" });
   }
 
-  const signatureData: string[] = Array.isArray(signaturePayload)
-    ? signaturePayload.map((entry) => String(entry))
-    : [];
+  const signatureEntries = normalizeSignaturePayload(signaturePayloadRaw);
+  const metadataCustom =
+    (envelope.metadata?.custom_metadata as Record<string, string>) ?? {};
+  const mergedPlaceholders = { ...metadataCustom, ...placeholders };
+  const slotSignatureMap = new Map(
+    signatureEntries.map((entry) => [entry.slot, entry.signatureText]),
+  );
 
   try {
+    const baseTemplate = envelope.metadata?.template_content as string | undefined;
+    if (!baseTemplate) {
+      return res.status(400).json({
+        error: "Preview metadata missing template content",
+      });
+    }
+
+    const slotsFromMetadata: SignatureSlot[] = Array.isArray(
+      envelope.metadata?.signature_slots,
+    )
+      ? (envelope.metadata?.signature_slots as SignatureSlot[])
+      : [];
+
+    const signedTemplate = replaceSignatureSlots(
+      baseTemplate,
+      slotsFromMetadata,
+      (slot) =>
+        renderSignatureSvg(
+          slot,
+          slotSignatureMap.get(slot.id) ?? slot.label ?? slot.id,
+          mergedPlaceholders,
+        ),
+    );
+
+    const finalMetadata: RequestMetadata = {
+      ...(envelope.metadata as RequestMetadata),
+      signature_slots: slotsFromMetadata,
+      signature_payload: signatureEntries,
+      user_metadata: extraMetadata,
+      template_content: baseTemplate,
+    };
+
+    const templateWithMetadata = appendHiddenMetadataBlock(
+      signedTemplate,
+      finalMetadata,
+    );
+
     const documentId = nanoid();
     const outputPath = path.join(env.PDF_OUTPUT_DIR, `${documentId}.pdf`);
     const outputDir = path.dirname(outputPath);
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir, { recursive: true });
     }
-    fs.writeFileSync(outputPath, pdfBuffer);
+
+    const finalPdfBuffer = await generateDocument(
+      templateWithMetadata,
+      mergedPlaceholders,
+      outputPath,
+    );
+    const finalContentHash = calculateHash(finalPdfBuffer);
 
     await Document.create({
       document_id: documentId,
-      template_content:
-        (envelope.metadata?.template_content as string) ??
-        "[preview-sign-flow]",
+      template_content: templateWithMetadata,
       placeholders,
       status: "completed",
       pdf_path: outputPath,
     });
 
-    await createBlock(documentId, actualHash, JSON.stringify(signatureData), {
-      placeholders,
-      preview_metadata: envelope.metadata,
-      user_metadata: extraMetadata,
-    });
+    await createBlock(
+      documentId,
+      finalContentHash,
+      JSON.stringify(signatureEntries),
+      {
+        placeholders,
+        preview_metadata: envelope.metadata,
+        user_metadata: extraMetadata,
+      },
+    );
 
     return res.status(201).json({
       document_id: documentId,
       status: "completed",
       pdf_url: `/api/v1/documents/${documentId}/pdf`,
-      content_hash: actualHash,
+      content_hash: finalContentHash,
     });
   } catch (error: any) {
     console.error("Error signing document:", error);

@@ -173,6 +173,10 @@ export async function htmlToPdf(
       display: block;
       margin: 1em auto;
     }
+    div[style*="margin: 16px 0"] img {
+      margin: 0;
+      display: inline-block;
+    }
     h1, h2, h3, h4, h5, h6 {
       margin-top: 1.5em;
       margin-bottom: 0.5em;
