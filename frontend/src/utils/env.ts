@@ -19,7 +19,7 @@ const toBool = (val: any, def = false): boolean => {
 const envs = {
   PUBLIC_DOCUCHAIN_BACKEND_URL: getv(
     "PUBLIC_DOCUCHAIN_BACKEND_URL",
-    "http://localhost:3000/api/v1",
+    "/api/v1",
   ),
   VERSION: getv("VERSION", "0.0.0"),
 
