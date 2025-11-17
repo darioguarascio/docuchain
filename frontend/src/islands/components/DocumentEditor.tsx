@@ -45,8 +45,12 @@ Please review all sections carefully before signing. When you click “Sign Docu
 
 ### Signatures
 
-{{signature_slot:party_a_signature:Party A Signature ({{party_a_name}})}}
+Il dottore
+{{signature: {{party_a_name}} }}
 
+---
+
+Il paziente
 {{signature_slot:party_b_signature:Party B Signature ({{party_b_name}})}}
 
 ---
