@@ -29,19 +29,12 @@ const envs = {
   JWT_COOKIE_TTL_MS: Number(getv("JWT_COOKIE_TTL_MS", 3600 * 1000)),
   JWT_COOKIE_SAMESITE: getv("JWT_COOKIE_SAMESITE", "Lax"),
   JWT_COOKIE_SECURE: toBool(getv("JWT_COOKIE_SECURE", "false")),
-  JWT_REDIRECT_URL: getv("JWT_REDIRECT_URL", "https://my.loganix.com"),
-  LOGOUT_REDIRECT_URL: getv("LOGOUT_REDIRECT_URL", "https://my.loganix.com"),
 
   // HMAC secret for SPP authentication
   HMAC_SECRET_KEY: getv("HMAC_SECRET_KEY", "my-super-secret-hmac-key-2024"),
 
   // Application environment
   APP_ENV: getv("APP_ENV", "production"),
-
-  MOCK_USER_JSON: getv(
-    "MOCK_USER_JSON",
-    '{"id":1,"email":"dev@loganix.com","name":"Dev User","role":"admin"}',
-  ),
 
   MOUNT_PATH: getv("MOUNT_PATH", "/"),
 };
