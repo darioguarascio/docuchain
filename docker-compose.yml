@@ -1,0 +1,174 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis
+    restart: always
+    # volumes:
+    #   - .config/redis.conf:/usr/local/etc/redis/redis.conf
+    # command: redis-server /usr/local/etc/redis/redis.conf
+    logging:
+      options:
+        max-size: ${DOCKER_LOG_MAX_SIZE:-10m}
+        max-file: ${DOCKER_LOG_MAX_FILE:-3}
+
+  postgresql:
+    image: postgres:15-alpine
+    restart: always
+    shm_size: "2gb"
+    volumes:
+      - .data/postgresql:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD:
+      POSTGRES_DB:
+      POSTGRES_USER:
+      POSTGRES_HOST_AUTH_METHOD: ${POSTGRES_HOST_AUTH_METHOD:-trust}
+    logging:
+      options:
+        max-size: ${DOCKER_LOG_MAX_SIZE:-10m}
+        max-file: ${DOCKER_LOG_MAX_FILE:-3}
+
+  backend:
+    build:
+      context: ./backend
+      args:
+        HOST: 0.0.0.0
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    working_dir: /app
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://docuchain:docuchain@postgresql:5432/postgres}
+      PDF_OUTPUT_DIR: ${PDF_OUTPUT_DIR:-/tmp/pdfs}
+      HMAC_SECRET_KEY: ${HMAC_SECRET_KEY:-}
+      JWT_SECRET: ${JWT_SECRET:-docuchain-jwt-secret}
+      GRACEFUL_TIMEOUT_MS: ${GRACEFUL_TIMEOUT_MS:-10000}
+      BACKEND_HEALTHCHECK_URL: ${BACKEND_HEALTHCHECK_URL:-/api/health}
+      VIRTUAL_HOST: ${BACKEND_VIRTUAL_HOST:-docuchain.local}
+      VIRTUAL_PORT: ${BACKEND_HTTP_PORT:-3000}
+      VIRTUAL_PATH: ${BACKEND_VIRTUAL_PATH:-/api}
+    env_file:
+      - .env
+    volumes:
+      - .data/pdfs:/tmp/pdfs
+    depends_on:
+      postgresql:
+        condition: service_started
+      redis:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- --user-agent='Docker-Healthcheck/Backend' http://127.0.0.1:3000$${BACKEND_HEALTHCHECK_URL:-/api/health} || exit 1",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    tty: true
+    logging:
+      options:
+        max-size: ${DOCKER_LOG_MAX_SIZE:-10m}
+        max-file: ${DOCKER_LOG_MAX_FILE:-3}
+
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    working_dir: /app
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      MOUNT_PATH: ${FRONTEND_MOUNT_PATH:-/}
+      ASTRO_ROOT_FOLDER: /app
+      HMAC_SECRET_KEY: ${HMAC_SECRET_KEY:-}
+      JWT_SECRET: ${JWT_SECRET:-docuchain-jwt-secret}
+      MOCK_USER_JSON: ${MOCK_USER_JSON:-}
+      GRACEFUL_TIMEOUT_MS: ${GRACEFUL_TIMEOUT_MS:-10000}
+      FRONTEND_HEALTHCHECK_URL: ${FRONTEND_HEALTHCHECK_URL:-/health}
+      VIRTUAL_HOST: ${FRONTEND_VIRTUAL_HOST:-docuchain.local}
+      VIRTUAL_PORT: ${FRONTEND_HTTP_PORT:-4321}
+      VIRTUAL_PATH: ${FRONTEND_VIRTUAL_PATH:-/}
+    env_file:
+      - .env
+    depends_on:
+      backend:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- --user-agent='Docker-Healthcheck/Frontend' http://127.0.0.1:4321$${FRONTEND_HEALTHCHECK_URL:-/health} || exit 1",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    tty: true
+    logging:
+      options:
+        max-size: ${DOCKER_LOG_MAX_SIZE:-10m}
+        max-file: ${DOCKER_LOG_MAX_FILE:-3}
+
+  worker:
+    build:
+      context: ./worker
+      args:
+        HOST: 0.0.0.0
+    restart: unless-stopped
+    environment:
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      REDIS_QUEUE: ${REDIS_QUEUE:-docuchain:documents:queue}
+      REDIS_DLQ: ${REDIS_DLQ:-docuchain:documents:dlq}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://docuchain:docuchain@postgresql:5432/postgres}
+      BACKEND_API_URL: ${BACKEND_API_URL:-http://backend:3000}
+      MAX_RETRIES: ${JOB_MAX_RETRIES:-3}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      postgresql:
+        condition: service_started
+      redis:
+        condition: service_started
+      backend:
+        condition: service_started
+    logging:
+      options:
+        max-size: ${DOCKER_LOG_MAX_SIZE:-10m}
+        max-file: ${DOCKER_LOG_MAX_FILE:-3}
+
+  nginx-proxy:
+    image: nginx:alpine
+    container_name: nginx-proxy
+    restart: always
+    environment:
+      HTTPS_METHOD: ${HTTPS_METHOD:-nohttps}
+    ports:
+      - ${NGINX_PROXY_HTTP_LISTEN:-80}:80
+    volumes:
+      - .data/nginx/certs:/etc/nginx/certs
+      - .data/nginx/vhost.d:/etc/nginx/vhost.d
+      - .data/nginx/conf.d:/etc/nginx/conf.d:ro
+      - .data/nginx/html:/usr/share/nginx/html
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+
+  nginx-gen:
+    image: nginxproxy/docker-gen:latest
+    container_name: nginx-gen
+    restart: always
+    entrypoint: >
+      /bin/sh -c "docker-gen -notify-sighup nginx-proxy -watch /etc/docker-gen/templates/nginx.tmpl /etc/nginx/conf.d/default.conf"
+    labels:
+      - com.github.nginx-proxy.docker-gen
+    volumes:
+      - .data/nginx/templates/nginx.tmpl:/etc/docker-gen/templates/nginx.tmpl:ro
+      - .data/nginx/certs:/etc/nginx/certs
+      - .data/nginx/vhost.d:/etc/nginx/vhost.d
+      - .data/nginx/conf.d:/etc/nginx/conf.d:rw
+      - .data/nginx/html:/usr/share/nginx/html
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+    depends_on:
+      - nginx-proxy

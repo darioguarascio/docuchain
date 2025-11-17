@@ -1,0 +1,7 @@
+.astro
+.env*
+dist
+node_modules
+.env.local
+node_modules
+dist
