@@ -244,14 +244,11 @@ export const signDocument = async (req: Request, res: Response) => {
         error: "Preview envelope is signed but server has no HMAC secret",
       });
     }
+    // Reconstruct envelope without hmac field (same as when creating)
+    const { hmac: _hmac, ...envelopeWithoutHmac } = envelope;
     const hmac = crypto
       .createHmac("sha256", env.HMAC_SECRET_KEY)
-      .update(
-        deterministicStringify({
-          ...envelope,
-          hmac: undefined,
-        }),
-      )
+      .update(deterministicStringify(envelopeWithoutHmac))
       .digest("hex");
     if (hmac !== envelope.hmac) {
       return res
