@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   redis:
-    image: redis
+    image: redis:7-alpine
     restart: always
     # volumes:
     #   - .config/redis.conf:/usr/local/etc/redis/redis.conf
@@ -62,7 +62,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "wget -qO- --user-agent='Docker-Healthcheck/Backend' http://127.0.0.1:3000$${BACKEND_HEALTHCHECK_URL:-/api/health} || exit 1",
+          "node -e \"const p=process.env.BACKEND_HEALTHCHECK_URL||'/api/health'; fetch('http://127.0.0.1:3000'+p,{headers:{'user-agent':'Docker-Healthcheck/Backend'}}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
         ]
       interval: 10s
       timeout: 3s
@@ -103,7 +103,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "wget -qO- --user-agent='Docker-Healthcheck/Frontend' http://127.0.0.1:4321$${FRONTEND_HEALTHCHECK_URL:-/health} || exit 1",
+          "node -e \"const p=process.env.FRONTEND_HEALTHCHECK_URL||'/health'; fetch('http://127.0.0.1:4321'+p,{headers:{'user-agent':'Docker-Healthcheck/Frontend'}}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
         ]
       interval: 10s
       timeout: 3s
@@ -142,11 +142,13 @@ services:
         max-file: ${DOCKER_LOG_MAX_FILE:-3}
 
   nginx-proxy:
-    image: nginx:alpine
+    image: nginx:1.31.9-alpine
     container_name: nginx-proxy
     restart: always
     environment:
       HTTPS_METHOD: ${HTTPS_METHOD:-nohttps}
+      # CVE-2026-123007 / RHSB-2026-019: no HTTP/2 on vulnerable nginx builds
+      ENABLE_HTTP2: "false"
     ports:
       - ${NGINX_PROXY_HTTP_LISTEN:-80}:80
     volumes:
@@ -157,15 +159,17 @@ services:
       - /var/run/docker.sock:/tmp/docker.sock:ro
 
   nginx-gen:
-    image: nginxproxy/docker-gen:latest
+    image: nginxproxy/docker-gen:0.17.2
     container_name: nginx-gen
     restart: always
+    environment:
+      ENABLE_HTTP2: "false"
     entrypoint: >
       /bin/sh -c "docker-gen -notify-sighup nginx-proxy -watch /etc/docker-gen/templates/nginx.tmpl /etc/nginx/conf.d/default.conf"
     labels:
       - com.github.nginx-proxy.docker-gen
     volumes:
-      - .data/nginx/templates/nginx.tmpl:/etc/docker-gen/templates/nginx.tmpl:ro
+      - ./nginx/nginx.tmpl:/etc/docker-gen/templates/nginx.tmpl:ro
       - .data/nginx/certs:/etc/nginx/certs
       - .data/nginx/vhost.d:/etc/nginx/vhost.d
       - .data/nginx/conf.d:/etc/nginx/conf.d:rw
